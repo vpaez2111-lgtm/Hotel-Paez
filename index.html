@@ -87,21 +87,35 @@
     <div class="chat-body" id="chatBody"><div class="bubble">¡Hola! Soy el concierge digital de Hotel Páez. Estoy aquí para ayudarte a planear tu estadía. ¿Qué te gustaría saber?</div></div>
     <div class="quick-asks"><button data-question="¿Cuáles son las habitaciones y precios?">Habitaciones y precios</button><button data-question="¿Cómo puedo reservar?">Reservar</button><button data-question="¿Dónde está ubicado el hotel?">Ubicación</button></div>
     <form class="chat-input" id="chatForm"><input id="chatMessage" placeholder="Escribe tu pregunta..." autocomplete="off"><button type="submit">ENVIAR</button></form>
-    <div class="chat-disclaimer">Asistente virtual en versión inicial. Para confirmaciones, disponibilidad en tiempo real o atención humana, continúa por WhatsApp.</div>
+    <div class="chat-disclaimer">Concierge con IA. Las tarifas son orientativas; no confirma reservas ni disponibilidad en tiempo real.</div>
   </div>
-  <a class="whatsapp" id="whatsappLink" href="https://wa.me/?text=Hola%2C%20quiero%20informaci%C3%B3n%20de%20Hotel%20P%C3%A1ez" target="_blank" rel="noopener">WHATSAPP ↗</a>
+  <a class="whatsapp" id="whatsappLink" href="https://wa.me/111222333444?text=Hola%2C%20quiero%20informaci%C3%B3n%20de%20Hotel%20P%C3%A1ez" target="_blank" rel="noopener">WHATSAPP ↗</a>
   <script>
     const $=s=>document.querySelector(s);
     const today=new Date();const localDate=d=>{const x=new Date(d.getTime()-d.getTimezoneOffset()*60000);return x.toISOString().slice(0,10)};
     $('#checkin').min=localDate(today);$('#checkout').min=localDate(new Date(today.getTime()+86400000));
     $('#checkin').addEventListener('change',()=>{const d=new Date($('#checkin').value+'T12:00:00');d.setDate(d.getDate()+1);$('#checkout').min=localDate(d);if($('#checkout').value && $('#checkout').value<$('#checkout').min)$('#checkout').value=$('#checkout').min});
-    const wa=text=>'https://wa.me/?text='+encodeURIComponent(text);
+    const WHATSAPP_NUMBER='111222333444';
+    const wa=text=>'https://wa.me/'+WHATSAPP_NUMBER+'?text='+encodeURIComponent(text);
     $('#bookingForm').addEventListener('submit',e=>{e.preventDefault();const msg='Hola, quiero consultar disponibilidad en Hotel Páez. Nombre: '+$('#guestName').value+'. Llegada: '+$('#checkin').value+'. Salida: '+$('#checkout').value+'. Habitación: '+$('#roomType').value+'. Huéspedes: '+$('#guests').value+'.';window.open(wa(msg),'_blank','noopener')});
-    const panel=$('#chatPanel'),body=$('#chatBody');$('#conciergeOpen').onclick=()=>panel.classList.add('open');$('#conciergeClose').onclick=()=>panel.classList.remove('open');
-    function reply(q){const t=q.toLowerCase();if(t.includes('precio')||t.includes('habit'))return 'Tenemos tres categorías: King Room (1 cama King) desde $589.000 COP, Double Queen (2 camas Queen) desde $649.000 COP y Future Suite desde $899.000 COP por noche. Son tarifas de referencia sujetas a temporada y disponibilidad.';if(t.includes('reserv'))return '¡Qué bueno que quieras visitarnos! Completa el formulario de reservas en la página o escríbenos por WhatsApp para confirmar disponibilidad y tarifa final.';if(t.includes('ubic')||t.includes('direc')||t.includes('dónde'))return 'Estamos proyectados en Cartagena de Indias, Colombia. La dirección exacta y los datos de contacto del hotel deben ser confirmados por administración antes de publicar.';if(t.includes('wifi')||t.includes('desayun')||t.includes('piscina')||t.includes('mascota'))return '¡Buena pregunta! Ese servicio está pendiente de confirmación por parte del hotel. Puedo ayudarte a consultar directamente por WhatsApp.';return 'Puedo orientarte sobre nuestras habitaciones y tarifas de referencia, o ayudarte a iniciar una solicitud de reserva. Para información personalizada o confirmaciones, escríbenos por WhatsApp.'}
-    function addBubble(text,who){const el=document.createElement('div');el.className='bubble'+(who==='user'?' user':'');el.textContent=text;body.appendChild(el);body.scrollTop=body.scrollHeight}
-    function send(q){if(!q.trim())return;addBubble(q,'user');setTimeout(()=>addBubble(reply(q),'bot'),250)}
-    $('#chatForm').addEventListener('submit',e=>{e.preventDefault();send($('#chatMessage').value);$('#chatMessage').value=''});
+    const panel=$('#chatPanel'),body=$('#chatBody'),conversation=[];
+    $('#conciergeOpen').onclick=()=>panel.classList.add('open');$('#conciergeClose').onclick=()=>panel.classList.remove('open');
+    function addBubble(text,who){const el=document.createElement('div');el.className='bubble'+(who==='user'?' user':'');el.textContent=text;body.appendChild(el);body.scrollTop=body.scrollHeight;return el}
+    async function send(q){
+      if(!q.trim())return;
+      addBubble(q,'user');conversation.push({role:'user',content:q.trim()});
+      const pending=addBubble('Estoy consultando…','bot');
+      const submit=$('#chatForm button');submit.disabled=true;
+      try{
+        const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:conversation.slice(-10)})});
+        const data=await response.json();
+        if(!response.ok)throw new Error(data.error||'No pude responder en este momento.');
+        pending.textContent=data.answer;conversation.push({role:'assistant',content:data.answer});
+      }catch(error){
+        pending.textContent=error.message||'No pude conectar con el concierge. Inténtalo de nuevo o escríbenos por WhatsApp.';
+      }finally{submit.disabled=false;body.scrollTop=body.scrollHeight}
+    }
+    $('#chatForm').addEventListener('submit',e=>{e.preventDefault();const input=$('#chatMessage');const value=input.value;input.value='';send(value)});
     document.querySelectorAll('.quick-asks button').forEach(b=>b.addEventListener('click',()=>send(b.dataset.question)));
   </script>
 </body>
